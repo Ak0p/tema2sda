@@ -3,10 +3,11 @@
 #include <string.h>
 #include <time.h>
 #include <inttypes.h>
-#include "TCoada-L.h"
-#include "TStiva-L.h"
+#include "TCoada-V.h"
+#include "TStiva-V.h"
 #define lineSize 50
 #define wordSize 25
+#define min(a,b) (a <= b ? a : b)
 
 
 typedef struct {
@@ -26,17 +27,19 @@ typedef struct {
 } task;
 
 
-short giveID(u_int *v) {
-  u_short k = 0;
-  u_short l = 31;
-  for(k = 0; k < (1 << 10); k++) {
-    for(l = 31; l >= 0; l--) {
-      int8_t temp = v[k] & (1 << l);
+u_int giveID(u_int **v) {
+  u_int k = 0;
+  u_int l = 31;
+  for(; k < (1 << 10); k++) {
+    for(l = 31; l > 0; l--) {
+      u_int temp = ((*v)[k] & (1 << l)) >> l;
       if(temp == 0) {
-        v[k] += 1 << l;
+        (*v)[k] |= 1 << l;
         return k*32 + (31-l);
-      }
+      } else
+          continue;
     }
+
   }
   return -1;
 }
@@ -64,20 +67,60 @@ void takeID(u_int *v, u_short id) {
 //
 // }
 
-void sortQ(void *q, int N) {
-    void *aux = InitQ(sizeof(task*), N);
-    task *temp1 = (task*)calloc(1, sizeof(task));
-    task *temp2 = (task*)calloc(1, sizeof(task));
-    int cond = 0;
-    while (!cond) {
-      ExtrQ(q, temp1);
-      IntrQ(aux, temp1);
-      temp2 = temp1;
-      PrimQ(aux, temp1);
-      if (temp1->prio < temp2->prio) {
-        IntrQ(aux, temp2);
-      }
+int cmpTask(task *task1, task* task2) {
+  if( task1->prio < task2->prio)
+    return 1;
+  else if (task1->prio > task2->prio)
+    return 0;
+  else {
+    if (task1->left_time > task2->left_time)
+      return 1;
+    else if (task1->left_time < task2->left_time)
+      return 0;
+    else {
+      if (task1->id > task2->id)
+        return 1;
+      else
+        return 0;
     }
+  }
+}
+
+void sortQ(void **q, int N) {
+
+    void *aux = InitQ(sizeof(task*), N);
+    task *min = (task*)calloc(1, sizeof(task));
+    task *temp = (task*)calloc(1, sizeof(task));
+
+    for(int i = 0; i < N; i++) {
+
+      ExtrQ(*q, min);
+      if(VIDA(*q)) {
+        IntrQ(*q, min);
+        return;
+      }
+
+      for (int i = 0; i < N && !VIDA(*q); i++) {
+
+        ExtrQ(*q, temp);
+        if (cmpTask(min, temp)) {
+          IntrQ(*q, temp);
+        } else {
+          task *schimb = (task*)calloc(1, sizeof(task));
+          memcpy(schimb, min, sizeof(task));
+          memcpy(min, temp, sizeof(task));
+          memcpy(temp, schimb, sizeof(task));
+          free(schimb);
+          IntrQ(*q, temp);
+        }
+      }
+      IntrQ(aux, min);
+    }
+    while(!VIDA(aux)) {
+      ExtrQ(aux, temp);
+      IntrQ(*q, aux);
+    }
+
 }
 /*
 pseuocod crescator
@@ -246,6 +289,7 @@ if (mode == 0) {
 }
 }
 
+
 int main(int argc, char* argv[]) {
 
     FILE *input;
@@ -291,9 +335,9 @@ int main(int argc, char* argv[]) {
           u->prio = prio;
           u->total_time = time;
           u->left_time = time;
-          u->id = giveID(vectID);
+          u->id = giveID(&vectID);
           IntrQ(waitingQ, &u);
-          printf("Task created successfully : ID %hu.", u->id);
+          printf("Task created successfully : ID %hu.\n", u->id);
         }
 
       //  printf("%hu %u %"PRId8"\n", nrTaskuri, time, prio);
@@ -331,6 +375,38 @@ int main(int argc, char* argv[]) {
 
       if(strcmp(word[0], "run") == 0) {
         u_int time = atoi(word[1]);
+
+        printf("Running tasks for %u ms...\n", time);
+        int  i = time;
+        while(!PLINA(runningQ) && !VIDA(thrdS)) {
+
+
+          for(int j = 0; j < N; j++) {
+            task *tempTsk = (task*)calloc(1, sizeof(task));
+            thread *tempTrd = (thread*)calloc(1, sizeof(thread));
+            ExtrQ(waitingQ, tempTsk);
+            Pop(thrdS, tempTrd);
+            tempTsk->trd.id = tempTrd->id;
+            tempTsk->left_time -= min(Q, i);
+            // if()
+            Push(runningS, tempTrd);
+            IntrQ(runningQ, tempTsk);
+          }
+          i -= min(time, Q);
+        }
+        // for(int i = time; i = 0 || i - Q < 0 ; i - min(i,Q) ) {
+        //     for(int j = 0; j < N; j++) {
+        //       task *tempTsk = (task*)calloc(1, sizeof(task));
+        //       thread *tempTrd = (thread*)calloc(1, sizeof(thread));
+        //       ExtrQ(waitingQ, tempTsk);
+        //       Pop(thrdS, tempTrd);
+        //       tempTsk->trd.id = tempTrd->id;
+        //
+        //       Push(runningS, tempTrd);
+        //       IntrQ(runningQ, tempTsk);
+        //     }
+        // }
+
       }
 
       if(strcmp(word[0], "finish") == 0) {
