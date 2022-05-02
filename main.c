@@ -28,25 +28,24 @@ typedef struct {
 
 
 u_int giveID(u_int **v) {
-  u_int k = 0;
-  u_int l = 31;
+  int k = 0;
+  int l = 31;
   for(; k < (1 << 10); k++) {
-    for(l = 31; l > 0; l--) {
-      u_int temp = ((*v)[k] & (1 << l)) >> l;
+    for(l = 31; l >= 0; l--) {
+      int temp = ((*v)[k] & (1 << l)) >> l;
       if(temp == 0) {
-        (*v)[k] |= 1 << l;
-        return k*32 + (31-l);
-      } else
-          continue;
+        (*v)[k] |= (1 << l);
+        //printf("k=%d l=%d\n", k, l);
+        return k*32 + (31-l+1);
+      }
     }
-
   }
   return -1;
 }
 
 void takeID(u_int *v, u_short id) {
       u_short k = id / 32;
-      u_short l = 31 - (id % 32);
+      u_short l = 31 - (id % 32) - 1;
       v[k] -= 1 << l;
 }
 
@@ -86,13 +85,13 @@ int cmpTask(task *task1, task* task2) {
   }
 }
 
-void sortQ(void **q, int N) {
+void sortQ(void **q, int maxTask) {
 
-    void *aux = InitQ(sizeof(task*), N);
+    void *aux = InitQ(sizeof(task*), maxTask);
     task *min = (task*)calloc(1, sizeof(task));
     task *temp = (task*)calloc(1, sizeof(task));
 
-    for(int i = 0; i < N; i++) {
+    for(int i = 0; i < maxTask; i++) {
 
       ExtrQ(*q, min);
       if(VIDA(*q)) {
@@ -100,7 +99,7 @@ void sortQ(void **q, int N) {
         return;
       }
 
-      for (int i = 0; i < N && !VIDA(*q); i++) {
+      for (int i = 0; i < maxTask && !VIDA(*q); i++) {
 
         ExtrQ(*q, temp);
         if (cmpTask(min, temp)) {
@@ -137,35 +136,42 @@ continue;
 */
 
 void *setupStiva(int a) {
-  void *thStack =  InitS(sizeof(thread*), a);
-  int thrdId = a - 1;
-  while(thrdId >= 0) {
+  void *thStack =  InitS(sizeof(thread), a);
+  int trdId = a - 1;
+  while(trdId >= 0) {
     thread *temp = (thread*)calloc(1, sizeof(thread));
-    temp->id = thrdId;
+    temp->id = trdId;
     Push(thStack, temp);
-    thrdId--;
-    }
+    trdId--;
+    // printf("Bfr %d id \n", temp->id);
+    // Top(thStack, temp);
+    // printf("After %d id \n", temp->id);
+  }
     return thStack;
 }
 
 
-void get_task(void *waitingQ, short id, int8_t status, int N) {
-  void *aux = InitQ(sizeof(task*), N);
+void get_task(void **waitingQ, short id, int8_t status, int maxTask) {
+  void *aux = InitQ(sizeof(task), maxTask);
   task *temp = (task*)calloc(1, sizeof(task));
   int8_t cond = 0;
-    while (!VIDA(waitingQ)) {
-      ExtrQ(waitingQ, temp);
+    while (!VidaQ(*waitingQ)) {
+      ExtrQ(*waitingQ, temp);
+    //  printf("Func id %d %d %"PRId8" time %u \n ",temp->id,temp->trd.id,temp->prio,temp->left_time);
       if (temp->id == id) {
         switch (status) {
           case 0:
             printf("Task %d is waiting (remaining_time = %u).\n"
             ,temp->id, temp->left_time);
+            break;
           case 1:
             printf("Task %d is running (remaining_time = %u).\n"
             ,temp->id, temp->left_time);
+            break;
           case 2:
             printf("Task %d is finished (executed_time = %u).\n"
             ,temp->id, temp->total_time);
+            break;
         }
         cond = 1;
       }
@@ -174,62 +180,68 @@ void get_task(void *waitingQ, short id, int8_t status, int N) {
     if (!cond) {
       printf("Task %d not found.\n", id);
     }
-    while (!VIDA(aux)) {
+    while (!VidaQ(aux)) {
       ExtrQ(aux, temp);
-      IntrQ(waitingQ, temp);
+       //printf("Func jos %d %d %"PRId8" %u\n ",temp->id,temp->trd.id,temp->prio,temp->left_time);
+      IntrQ(*waitingQ, temp);
     }
     DistrQ(&aux);
     free(temp);
+  //  printf("Cv\n");
 
 }
 
-void get_thread(void *s, void *waitingQ, u_short id, int N) {
+void get_thread(void **s, void **waitingQ, u_short id, int N, int maxTask) {
   int8_t idle = 0;
-  void *auxS = InitS(sizeof(thread*), N);
+  void *auxS = InitS(sizeof(thread), N);
   thread *tempTrd = (thread*)calloc(1, sizeof(thread));
-  while(!VIDA(s)) {
-    ExtrQ(s, tempTrd);
+  while(!VidaS(*s)) {
+  //  printf("Da\n");
+    Pop(*s, tempTrd);
+//    printf("%d\n", tempTrd->id);
     if (tempTrd->id == id) {
       idle = 1;
       printf("Thread %hu is idle.\n", tempTrd->id);
     }
-    IntrQ(auxS, tempTrd);
+      Push(auxS, tempTrd);
+  //    printf("%d\n", tempTrd->id);
+  }
 
-    while(!VIDA(auxS)) {
-      ExtrQ(auxS, tempTrd);
-      IntrQ(s, tempTrd);
+    while(!VidaS(auxS)) {
+      Pop(auxS, tempTrd);
+      Push(*s, tempTrd);
     }
     DistrS(&auxS);
     free(tempTrd);
-  }
+
   if(idle)
     return;
-
-  void *auxQ = InitQ(sizeof(task*), N);
+return;
+  void *auxQ = InitQ(sizeof(task), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
-      while (!VIDA(waitingQ)) {
-        ExtrQ(waitingQ, tempTask);
+      while (!VidaQ(*waitingQ)) {
+        ExtrQ(*waitingQ, tempTask);
         if (tempTask->trd.id == id) {
          printf("Thread %d is running task %d (remaining_time = %d).\n"
          ,tempTask->trd.id ,tempTask->id, tempTask->left_time);
         }
         IntrQ(auxQ, tempTask);
       }
-      while (!VIDA(auxQ)) {
+      while (!VidaQ(auxQ)) {
         ExtrQ(auxQ, tempTask);
-        IntrQ(waitingQ, tempTask);
+        IntrQ(*waitingQ, tempTask);
       }
       DistrQ(&auxQ);
       free(tempTask);
 
 }
 
-void print(void *q, int8_t mode, int N) {
+void print(void *q, int8_t mode, int maxTask) {
 
 if (mode == 0) {
   printf("====== Waiting queue ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), N);
+  void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VIDA(q)) {
         ExtrQ(q, tempTask);
@@ -250,7 +262,7 @@ if (mode == 0) {
 
   printf("====== Running in parallel ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), N);
+  void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VIDA(q)) {
         ExtrQ(q, tempTask);
@@ -270,7 +282,7 @@ if (mode == 0) {
 
   printf("====== Finished queue ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), N);
+  void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VIDA(q)) {
         ExtrQ(q, tempTask);
@@ -302,12 +314,14 @@ int main(int argc, char* argv[]) {
     N = 2 * C;
     // setup stiva
     int8_t status = 0;
+    u_short maxTask = 1<<15;
     void *thrdS = setupStiva(N);
-    void *runningS = InitS(sizeof(thread*), N);
-    void *waitingQ = InitQ(sizeof(task*), N);
-    void *runningQ = InitQ(sizeof(task*), N);
-    void *finishedQ = InitQ(sizeof(task*), N);
-    u_int *vectID = (u_int*)calloc(1<<15 / sizeof(int), sizeof(int));
+    void *waitingS = InitS(sizeof(thread), N);
+    void *runningS = InitS(sizeof(thread), N);
+    void *waitingQ = InitQ(sizeof(task), maxTask);
+    void *runningQ = InitQ(sizeof(task), maxTask);
+    void *finishedQ = InitQ(sizeof(task), maxTask);
+    u_int *vectID = (u_int*)calloc(1<<10, sizeof(int));
 
 
   //  printf("%hu %hu\n", cuanta, cores);
@@ -332,12 +346,17 @@ int main(int argc, char* argv[]) {
         u_int8_t prio = atoi(word[3]);
         for(int i = 0; i < nrTaskuri; i++) {
           task *u = (task*)calloc(1, sizeof(task));
+          task *temp = (task*)calloc(1, sizeof(task));
+      //    printf("id %d",tempTrd->id);
           u->prio = prio;
           u->total_time = time;
           u->left_time = time;
           u->id = giveID(&vectID);
-          IntrQ(waitingQ, &u);
+          IntrQ(waitingQ, u);
+          PrimQ(waitingQ, temp);
+        //  printf("id %d %d %"PRId8" time %u\n ",u->id,u->trd.id,u->prio, u->left_time);
           printf("Task created successfully : ID %hu.\n", u->id);
+          free(temp);
         }
 
       //  printf("%hu %u %"PRId8"\n", nrTaskuri, time, prio);
@@ -346,13 +365,13 @@ int main(int argc, char* argv[]) {
       if(strcmp(word[0], "get_task") == 0) {
 
             short id = atoi(word[1]);
-            get_task(waitingQ, id, status, N);
+            get_task(&waitingQ, id, status, maxTask);
 
       }
 
       if(strcmp(word[0], "get_thread") == 0) {
         u_short id = atoi(word[1]);
-        get_thread(thrdS, waitingQ, id, N);
+        get_thread(&thrdS, &waitingQ, id, N, maxTask);
 
       }
 
