@@ -236,23 +236,28 @@ return;
 
 }
 
-void print(void *q, int8_t mode, int maxTask) {
+void print(void **q, int8_t mode, int maxTask) {
 
 if (mode == 0) {
   printf("====== Waiting queue ======\n");
   printf("[");
   void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
-      while (!VIDA(q)) {
-        ExtrQ(q, tempTask);
-        printf("(%d: priority = %d, remaining_time = %d)"
+      while (!VidaQ(*q)) {
+        ExtrQ(*q, tempTask);
+        if (VidaQ(*q)) {
+          printf("(%d: priority = %d, remaining_time = %d)"
+          , tempTask->id, tempTask->prio, tempTask->left_time);
+        } else {
+        printf("(%d: priority = %d, remaining_time = %d),\n"
         , tempTask->id, tempTask->prio, tempTask->left_time);
+        }
         IntrQ(auxQ, tempTask);
       }
   printf("]\n");
-  while (!VIDA(auxQ)) {
+  while (!VidaQ(auxQ)) {
         ExtrQ(auxQ, tempTask);
-        IntrQ(q, tempTask);
+        IntrQ(*q, tempTask);
       }
   DistrQ(&auxQ);
   free(tempTask);
@@ -264,16 +269,22 @@ if (mode == 0) {
   printf("[");
   void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
-      while (!VIDA(q)) {
-        ExtrQ(q, tempTask);
+      while (!VidaQ(*q)) {
+        ExtrQ(*q, tempTask);
+      if (VidaQ(*q)) {
         printf("(%d: priority = %d, remaining_time = %d, running_thread = %d)"
-        , tempTask->id, tempTask->prio, tempTask->left_time, tempTask->trd.id);
+          ,tempTask->id, tempTask->prio, tempTask->left_time, tempTask->trd.id);
+      } else {
+      printf("(%d: priority = %d, remaining_time = %d, running_thread = %d),\n"
+        ,tempTask->id, tempTask->prio, tempTask->left_time, tempTask->trd.id);
+      }
         IntrQ(auxQ, tempTask);
       }
+
   printf("]\n");
-  while (!VIDA(auxQ)) {
+  while (!VidaQ(auxQ)) {
         ExtrQ(auxQ, tempTask);
-        IntrQ(q, tempTask);
+        IntrQ(*q, tempTask);
       }
   DistrQ(&auxQ);
   free(tempTask);
@@ -284,16 +295,21 @@ if (mode == 0) {
   printf("[");
   void *auxQ = InitQ(sizeof(task*), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
-      while (!VIDA(q)) {
-        ExtrQ(q, tempTask);
-        printf("(%d: priority = %d, executed_time = %d)"
+      while (!VidaQ(*q)) {
+        ExtrQ(*q, tempTask);
+        if (VidaQ(*q)) {
+          printf("(%d: priority = %d, executed_time = %d)"
+          , tempTask->id, tempTask->prio, tempTask->total_time);
+        } else {
+        printf("(%d: priority = %d, executed_time = %d),\n"
         , tempTask->id, tempTask->prio, tempTask->total_time);
+        }
         IntrQ(auxQ, tempTask);
       }
   printf("]\n");
-  while (!VIDA(auxQ)) {
+  while (!VidaQ(auxQ)) {
         ExtrQ(auxQ, tempTask);
-        IntrQ(q, tempTask);
+        IntrQ(*q, tempTask);
       }
   DistrQ(&auxQ);
   free(tempTask);
@@ -316,8 +332,6 @@ int main(int argc, char* argv[]) {
     int8_t status = 0;
     u_short maxTask = 1<<15;
     void *thrdS = setupStiva(N);
-    void *waitingS = InitS(sizeof(thread), N);
-    void *runningS = InitS(sizeof(thread), N);
     void *waitingQ = InitQ(sizeof(task), maxTask);
     void *runningQ = InitQ(sizeof(task), maxTask);
     void *finishedQ = InitQ(sizeof(task), maxTask);
@@ -379,15 +393,15 @@ int main(int argc, char* argv[]) {
         int8_t mode = -1;
         if(strcmp(word[1], "waiting") == 0) {
           mode = 0;
-          print(waitingQ, mode, N);
+          print(&waitingQ, mode, N);
 
         } else if(strcmp(word[1], "running") == 0) {
           mode = 1;
-          print(runningQ, mode, N);
+          print(&runningQ, mode, N);
 
         } else if(strcmp(word[1], "finished") == 0) {
           mode = 2;
-          print(finishedQ, mode, N);
+          print(&finishedQ, mode, N);
 
         }
       }
@@ -408,7 +422,7 @@ int main(int argc, char* argv[]) {
             tempTsk->trd.id = tempTrd->id;
             tempTsk->left_time -= min(Q, i);
             // if()
-            Push(runningS, tempTrd);
+        //    Push(runningS, tempTrd);
             IntrQ(runningQ, tempTsk);
           }
           i -= min(time, Q);
