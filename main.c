@@ -293,7 +293,7 @@ void print(void **q, int8_t mode, int maxTask) {
 if (mode == 0) {
   printf("====== Waiting queue ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), maxTask);
+  void *auxQ = InitQ(sizeof(task), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VidaQ(*q)) {
         ExtrQ(*q, tempTask);
@@ -319,7 +319,7 @@ if (mode == 0) {
 
   printf("====== Running in parallel ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), maxTask);
+  void *auxQ = InitQ(sizeof(task), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VidaQ(*q)) {
         ExtrQ(*q, tempTask);
@@ -345,7 +345,7 @@ if (mode == 0) {
 
   printf("====== Finished queue ======\n");
   printf("[");
-  void *auxQ = InitQ(sizeof(task*), maxTask);
+  void *auxQ = InitQ(sizeof(task), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VidaQ(*q)) {
         ExtrQ(*q, tempTask);
