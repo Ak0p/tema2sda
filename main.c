@@ -85,9 +85,20 @@ int cmpTask(task *task1, task* task2) {
   }
 }
 
+int cmpTaskeg(task *task1, task* task2) {
+  if( task1->prio == task2->prio) {
+    if (task1->left_time > task2->left_time) {
+      if (task1->id > task2->id)
+        return 1;
+    }
+
+  }
+  return 0;
+}
+
 void sortQ(void **q, int maxTask) {
 
-    void *aux = InitQ(sizeof(task*), maxTask);
+    void *aux = InitQ(sizeof(task), maxTask);
     task *min = (task*)calloc(1, sizeof(task));
     task *temp = (task*)calloc(1, sizeof(task));
 
@@ -99,7 +110,7 @@ void sortQ(void **q, int maxTask) {
         return;
       }
 
-      for (int i = 0; i < maxTask && !VIDA(*q); i++) {
+      for (int i = 0; i < maxTask && !VidaQ(*q); i++) {
 
         ExtrQ(*q, temp);
         if (cmpTask(min, temp)) {
@@ -115,25 +126,53 @@ void sortQ(void **q, int maxTask) {
       }
       IntrQ(aux, min);
     }
-    while(!VIDA(aux)) {
+    while(!VidaQ(aux)) {
       ExtrQ(aux, temp);
       IntrQ(*q, aux);
     }
 
 }
-/*
-pseuocod crescator
-q, temp1, temp2, aux
-extrq(q, temp1)
-temp2 = temp1
-intrq(aux, temp2)
-extrq(q, temp1)
-if (temp1 > temp2) {
-IntrQ(aux, temp1);
-temp2 = temp1;
-continue;
-}
-*/
+
+void sortQu(void **q, int maxTask) {
+
+    void *aux = InitQ(sizeof(task), maxTask);
+    task *min = (task*)calloc(1, sizeof(task));
+    task *temp = (task*)calloc(1, sizeof(task));
+    void *final= InitQ(sizeof(task), maxTask);
+    while (!VidaQ(*q)) {
+    //  printf("Aci mare\n");
+      ExtrQ(*q, min);
+      while (!VidaQ(*q)) {
+        ExtrQ(*q, temp);
+        if (cmpTask(min, temp) == 1) {
+          task *schimb = (task*)calloc(1, sizeof(task));
+          memcpy(schimb, min, sizeof(task));
+          memcpy(min, temp, sizeof(task));
+          memcpy(temp, schimb, sizeof(task));
+          free(schimb);
+        }
+        IntrQ(aux, temp);
+      }
+        IntrQ(final, min);
+      //  printf("%d %d %"PRId8" %u %u\n", min->id, min->trd.id, min->prio, min->total_time, min->left_time);
+        while (!VidaQ(aux)) {
+      //    printf("Aci mic\n");
+          ExtrQ(aux, temp);
+        //  printf("%d %d %"PRId8" %u %u\n", temp->id, temp->trd.id, temp->prio, temp->total_time, temp->left_time);
+          IntrQ(*q, temp);
+      }
+    }
+    while (!VidaQ(final)) {
+    //  printf("Aci final\n");
+      ExtrQ(final, temp);
+    //  printf("%d %d %"PRId8" %u %u\n", temp->id, temp->trd.id, temp->prio, temp->total_time, temp->left_time);
+      IntrQ(*q, temp);
+    }
+  //  printf("E\n");
+    free(temp);
+    free(min);
+  }
+
 
 void *setupStiva(int a) {
   void *thStack =  InitS(sizeof(thread), a);
@@ -191,7 +230,7 @@ void get_task(void **waitingQ, short id, int8_t status, int maxTask) {
 
 }
 
-void get_thread(void **s, void **waitingQ, u_short id, int N, int maxTask) {
+void get_thread(void **s, void **waitingQ, void **runningQ, u_short id, int N, int maxTask) {
   int8_t idle = 0;
   void *auxS = InitS(sizeof(thread), N);
   thread *tempTrd = (thread*)calloc(1, sizeof(thread));
@@ -214,16 +253,13 @@ void get_thread(void **s, void **waitingQ, u_short id, int N, int maxTask) {
     DistrS(&auxS);
     free(tempTrd);
 
-  if(idle)
-    return;
-return;
   void *auxQ = InitQ(sizeof(task), maxTask);
   task *tempTask = (task*)calloc(1, sizeof(task));
       while (!VidaQ(*waitingQ)) {
         ExtrQ(*waitingQ, tempTask);
         if (tempTask->trd.id == id) {
-         printf("Thread %d is running task %d (remaining_time = %d).\n"
-         ,tempTask->trd.id ,tempTask->id, tempTask->left_time);
+         printf("Thread %hu is idle.\n",tempTask->trd.id);
+         idle = 1;
         }
         IntrQ(auxQ, tempTask);
       }
@@ -233,7 +269,23 @@ return;
       }
       DistrQ(&auxQ);
       free(tempTask);
+  if(idle)
+    return;
 
+      // while (!VidaQ(*runningQ)) {
+      //     ExtrQ(*runningQ, tempTask);
+      //     if (tempTask->trd.id == id) {
+      //        printf("Thread %d is running task %d (remaining_time = %d).\n"
+      //        ,tempTask->trd.id ,tempTask->id, tempTask->left_time);
+      //     }
+      //     IntrQ(auxQ, tempTask);
+      //   }
+      //   while (!VidaQ(auxQ)) {
+      //     ExtrQ(auxQ, tempTask);
+      //     IntrQ(*runningQ, tempTask);
+      //   }
+      //   DistrQ(&auxQ);
+      //   free(tempTask);
 }
 
 void print(void **q, int8_t mode, int maxTask) {
@@ -358,22 +410,25 @@ int main(int argc, char* argv[]) {
         u_short nrTaskuri = atoi(word[1]);
         u_int time = atoi(word[2]);
         u_int8_t prio = atoi(word[3]);
+        task *u = (task*)calloc(1, sizeof(task));
+        thread *tempTrd = (thread*)calloc(1, sizeof(thread));
         for(int i = 0; i < nrTaskuri; i++) {
-          task *u = (task*)calloc(1, sizeof(task));
-          task *temp = (task*)calloc(1, sizeof(task));
+          Pop(thrdS, tempTrd);
       //    printf("id %d",tempTrd->id);
+          u->trd.id = tempTrd->id;
           u->prio = prio;
           u->total_time = time;
           u->left_time = time;
           u->id = giveID(&vectID);
           IntrQ(waitingQ, u);
-          PrimQ(waitingQ, temp);
         //  printf("id %d %d %"PRId8" time %u\n ",u->id,u->trd.id,u->prio, u->left_time);
           printf("Task created successfully : ID %hu.\n", u->id);
-          free(temp);
         }
+        free(u);
+        free(tempTrd);
 
       //  printf("%hu %u %"PRId8"\n", nrTaskuri, time, prio);
+       sortQu(&waitingQ, maxTask);
       }
 
       if(strcmp(word[0], "get_task") == 0) {
@@ -385,7 +440,7 @@ int main(int argc, char* argv[]) {
 
       if(strcmp(word[0], "get_thread") == 0) {
         u_short id = atoi(word[1]);
-        get_thread(&thrdS, &waitingQ, id, N, maxTask);
+        get_thread(&thrdS, &waitingQ, &runningQ, id, N, maxTask);
 
       }
 
